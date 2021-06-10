@@ -15,46 +15,38 @@ object ChatsService{
     private fun unread(messages: MutableList<Message>) = messages.count { it.unread } > 0
     val short = :: unread
 
-    private fun chatsCopy (userId: Int): MutableList<Chat> = usersChats
-        .filter { it.userIds.first == userId || it.userIds.second == userId }.toMutableList()
 
-    fun getUnreadChatsCount(userId: Int): Int {
-        val chatsCopy = chatsCopy(userId)
-        return chatsCopy.count { short(it.messages)}
-    }
+     private fun chatsCopy(userId: Int): MutableList<Chat> {
+         val copy = mutableListOf<Chat>()
+         usersChats.filter{chat -> chat.containsUserId(userId) }
+             .forEach { copy.add(it.copy(it.id,it.userIds,it.messages)) }
+         return copy
+     }
 
-    fun getChats(userId: Int): MutableList<Chat> {
-        val chatsCopy = chatsCopy(userId)
-        chatsCopy.replaceAll { it.copy(messages = mutableListOf(it.messages.last()))}
-        return chatsCopy
-    }
+
+
+    fun getUnreadChatsCount(userId: Int): Int  = chatsCopy(userId)
+        .count { short(it.messages)}
+
+    fun getChats(userId: Int): MutableList<Chat> =
+        chatsCopy(userId).onEach { it.messages = mutableListOf(it.messages.last()) }
 
     fun getMessagesFromChat(
         chatId: Int, fromMessageId: Int,
         messageCount: Int
-    ): List<Message> {
-        val result = mutableListOf<Message>()
-        usersChats.forEach{ chat ->
-            if(chat.id == chatId){
-                chat.messages.forEachIndexed { mIndex, message ->
-                    when (message.id) {
-                        in fromMessageId until fromMessageId + messageCount -> {
-                            result += message
-                            chat.messages[mIndex] = chat.messages[mIndex].copy(unread = false)}
-                        else -> return@forEachIndexed
-                    }
-                }
-            }
-        }
-        return result
-    }
+    ): MutableList<Message>  = (usersChats.find { chat ->  chat.id == chatId } ?:
+        throw ChatDoesNotExistException)
+        .messages.filter { chat -> chat.id in fromMessageId until fromMessageId + messageCount }
+        .toMutableList()
+        .also { list -> list.replaceAll { message -> message.copy(unread = false)} }
 
     fun addMessage(
         currentUserId: Int, toId: Int,
         text: String
     ): Boolean{
-        val currentChat = (usersChats.find { it.userIds == Pair(currentUserId,toId) }) ?:
-            addChat(currentUserId, toId)
+        val currentChat = (usersChats.find {
+            it.containsPair( Pair(currentUserId,toId) ) }
+                ) ?: addChat(currentUserId, toId)
         currentChat.messages += Message(
             id = when {
                 currentChat.messages.isEmpty() -> 1
@@ -63,14 +55,16 @@ object ChatsService{
         return true
     }
 
-    fun deleteMessage(chatId: Int, messageId: Int){
-        val chat = usersChats.find { it.id == chatId } ?:
-        throw ChatDoesNotExistException
-        val completed = chat.messages.removeIf { it.id == messageId }
-        when{
-            completed -> if(chat.messages.isEmpty()) deleteChat(chat.id)
-            else ->  throw MessageDoesNotExistException
-        }
+    fun deleteMessage(chatId: Int, messageId: Int): Boolean{
+        (usersChats.find { chat ->   chat.id == chatId } ?:
+        throw ChatDoesNotExistException)
+            .also { chat -> chat.messages
+                .find { message -> message.id == messageId } ?:
+                throw MessageDoesNotExistException}
+            .also{ chat -> chat.messages
+                .removeIf { message -> message.id == messageId }
+                .let { usersChats.removeIf { it.messages.isEmpty() } }
+                .let { return true } }
     }
 
     private fun addChat(currentUserId: Int, toId: Int): Chat{
