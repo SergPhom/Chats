@@ -15,15 +15,12 @@ object ChatsService{
     private fun unread(messages: MutableList<Message>) = messages.count { it.unread } > 0
     val short = :: unread
 
-
-     private fun chatsCopy(userId: Int): MutableList<Chat> {
-         val copy = mutableListOf<Chat>()
-         usersChats.filter{chat -> chat.containsUserId(userId) }
-             .forEach { copy.add(it.copy(it.id,it.userIds,it.messages)) }
-         return copy
+    private fun chatsCopy(userId: Int): MutableList<Chat> {
+        val copy = mutableListOf<Chat>()
+        usersChats.filter{chat -> chat.containsUserId(userId) }
+            .forEach { copy.add(it.copy(it.id,it.userIds,it.messages)) }
+        return copy
      }
-
-
 
     fun getUnreadChatsCount(userId: Int): Int  = chatsCopy(userId)
         .count { short(it.messages)}
