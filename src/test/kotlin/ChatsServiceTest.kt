@@ -79,8 +79,9 @@ class ChatsServiceTest {
     fun deleteChat() {
         clear()
         ChatsService.addMessage(1,2, "test")
-        ChatsService.deleteChat(1)
+        val result = ChatsService.deleteChat(1)
 
         assertTrue(ChatsService.getUsersChats().isEmpty())
+        assertTrue(result)
     }
 }
